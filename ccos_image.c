@@ -136,7 +136,6 @@ int ccos_get_dir_contents(ccfs_handle ctx, ccos_inode_t* dir, uint8_t* data, uin
 
 cleanup:
   free(dir_contents);
-  free(elements);
   return res;
 }
 
