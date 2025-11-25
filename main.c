@@ -98,6 +98,8 @@ static void print_usage() {
 ccfs_context_t* default_ccos_context() {
   ccfs_context_t* ctx = malloc(sizeof(ccfs_context_t));
 
+  ctx->disk = NULL;
+  ctx->disk_size = 0;
   ctx->sector_size = DEFAULT_SECTOR_SIZE;
   ctx->superblock_id = DEFAULT_SUPERBLOCK;
   ctx->bitmap_block_id = DEFAULT_BITMAP_BLOCK;
@@ -233,24 +235,21 @@ int main(int argc, char** argv) {
     return create_blank_image(ctx, path, new_image_size);
   }
 
-  uint8_t* file_contents = NULL;
-  size_t file_size = 0;
-  if (read_file(path, &file_contents, &file_size)) {
+  if (read_file(path, &ctx->disk, &ctx->disk_size)) {
     fprintf(stderr, "Unable to read disk image file!\n");
     print_usage();
     return -1;
   }
 
-  if (!is_image_supported(file_contents)) {
+  if (!is_image_supported(ctx->disk)) {
     fprintf(stderr, "Unable to get superblock: invalid image format!\n");
-    free(file_contents);
     return -1;
   }
 
   int res;
   switch (mode) {
     case MODE_PRINT: {
-      res = print_image_info(ctx, path, file_contents, file_size, short_format);
+      res = print_image_info(ctx, path, short_format);
       if (res) {
         fprintf(stderr, "TODO");
         break;
@@ -258,7 +257,7 @@ int main(int argc, char** argv) {
 
       size_t free_bytes = 0;
 
-      int ret = ccos_calc_free_space(ctx, file_contents, file_size, &free_bytes);
+      int ret = ccos_calc_free_space(ctx, &free_bytes);
       if (ret) {
         fprintf(stderr, "TODO");
       } else {
@@ -268,15 +267,15 @@ int main(int argc, char** argv) {
       break;
     }
     case MODE_DUMP: {
-      res = dump_image(ctx, path, file_contents, file_size);
+      res = dump_image(ctx, path);
       break;
     }
     case MODE_REPLACE_FILE: {
-      res = replace_file(ctx, path, filename, target_name, file_contents, file_size, in_place);
+      res = replace_file(ctx, path, filename, target_name, in_place);
       break;
     }
     case MODE_COPY_FILE: {
-      res = copy_file(ctx, target_image, filename, file_contents, file_size, in_place);
+      res = copy_file(ctx, target_image, filename, in_place);
       break;
     }
     case MODE_DELETE_FILE: {
@@ -289,16 +288,16 @@ int main(int argc, char** argv) {
         print_usage();
         res = -1;
       } else {
-        res = add_file(ctx, path, filename, target_name, file_contents, file_size, in_place);
+        res = add_file(ctx, path, filename, target_name, in_place);
       }
       break;
     }
     case MODE_CREATE_DIRECTORY: {
-      res = create_directory(ctx, path, dir_name, file_contents, file_size, in_place);
+      res = create_directory(ctx, path, dir_name, in_place);
       break;
     }
     case MODE_RENAME_FILE: {
-      res = rename_file(ctx, path, filename, target_name, file_contents, file_size, in_place);
+      res = rename_file(ctx, path, filename, target_name, in_place);
       break;
     }
     default: {
@@ -307,7 +306,5 @@ int main(int argc, char** argv) {
       res = -1;
     }
   }
-
-  free(file_contents);
   return res;
 }

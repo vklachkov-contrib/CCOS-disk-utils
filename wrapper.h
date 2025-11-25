@@ -9,23 +9,20 @@
  * @param[in]  ctx        Filesystem context handle.
  * @param[in]  path       The path to CCOS image.
  * @param[in]  dir        The directory.
- * @param[in]  data       CCOS image data.
  *
  * @return     0 on success, -1 otherwise.
  */
-int dump_dir(ccfs_handle ctx, const char* path, ccos_inode_t* dir, uint8_t* data);
+int dump_dir(ccfs_handle ctx, const char* path, ccos_inode_t* dir);
 
 /**
  * @brief      Dumps all files and directories from CCOS disk image.
  *
  * @param[in]  ctx        Filesystem context handle.
  * @param[in]  path       The path to CCOS image.
- * @param[in]  data       CCOS image data.
- * @param[in]  data_size  Image data size.
  *
  * @return     0 on success, -1 otherwise.
  */
-int dump_image(ccfs_handle ctx, const char* path, uint8_t* data, size_t data_size);
+int dump_image(ccfs_handle ctx, const char* path);
 
 /**
  * @brief      Dumps file to directory from CCOS disk image.
@@ -33,11 +30,10 @@ int dump_image(ccfs_handle ctx, const char* path, uint8_t* data, size_t data_siz
  * @param[in]  ctx              Filesystem context handle.
  * @param[in]  path_to_dir      The path to destination directory.
  * @param[in]  file             The file to dump.
- * @param[in]  image_data       CCOS image data.
  *
  * @return     0 on success, -1 otherwise.
  */
-int dump_file(ccfs_handle ctx, const char* path_to_dir, ccos_inode_t* file, uint8_t* image_data);
+int dump_file(ccfs_handle ctx, const char* path_to_dir, ccos_inode_t* file);
 
 /**
  * @brief      Dumps a directory recursively from CCOS disk image to a custom folder.
@@ -76,7 +72,7 @@ int dump_image_to(ccfs_handle ctx, const char* path, uint8_t* data, size_t data_
  *
  * @return     0 on success, -1 otherwise.
  */
-int print_image_info(ccfs_handle ctx, const char* path, uint8_t* data, size_t data_size, int short_format);
+int print_image_info(ccfs_handle ctx, const char* path, int short_format);
 
 /**
  * @brief      Replace file in the CCOS image.
@@ -93,8 +89,7 @@ int print_image_info(ccfs_handle ctx, const char* path, uint8_t* data, size_t da
  *
  * @return     0 on success, -1 otherwise.
  */
-int replace_file(ccfs_handle ctx, const char* path, const char* filename, const char* target_name, uint8_t* data, size_t data_size,
-                 int in_place);
+int replace_file(ccfs_handle ctx, const char* path, const char* filename, const char* target_name, int in_place);
 
 /**
  * @brief      Copy file from one image into another.
@@ -109,7 +104,7 @@ int replace_file(ccfs_handle ctx, const char* path, const char* filename, const 
  *
  * @return     0 on success, -1 otherwise.
  */
-int copy_file(ccfs_handle ctx, const char* target_image, const char* filename, uint8_t* source_data, size_t source_size, int in_place);
+int copy_file(ccfs_handle src, const char* target_image, const char* filename, int in_place);
 
 /**
  * @brief      Delete file in the image.
@@ -138,8 +133,7 @@ int delete_file(ccfs_handle ctx, const char* path, const char* filename, int in_
  *
  * @return     0 on success, -1 otherwise.
  */
-int add_file(ccfs_handle ctx, const char* image_path, const char* file_path, const char* file_name,
-             uint8_t* data, size_t data_size, int in_place);
+int add_file(ccfs_handle ctx, const char* image_path, const char* file_path, const char* file_name, int in_place);
 
 /**
  * @brief      Create directory in the image.
@@ -154,7 +148,7 @@ int add_file(ccfs_handle ctx, const char* image_path, const char* file_path, con
  *
  * @return     0 on success, -1 otherwise.
  */
-int create_directory(ccfs_handle ctx, char* path, char* directory_name, uint8_t* file_contents, size_t file_size, int in_place);
+int create_directory(ccfs_handle ctx, char* path, char* directory_name, int in_place);
 
 /**
  * @brief      Rename file in the image.
@@ -163,14 +157,12 @@ int create_directory(ccfs_handle ctx, char* path, char* directory_name, uint8_t*
  * @param      path        Path to the image.
  * @param      file_name   The current name of the file.
  * @param      new_name    The new name of the file.
- * @param      image_data  CCOS image data.
- * @param[in]  image_size  CCOS image data size.
  * @param[in]  in_place    If true, overwrite original target image. Otherwise, save new image under {target_image}.out
  * name.
  *
  * @return     0 on success, -1 otherwise.
  */
-int rename_file(ccfs_handle ctx, char* path, char* file_name, char* new_name, uint8_t* image_data, size_t image_size, int in_place);
+int rename_file(ccfs_handle ctx, char* path, char* file_name, char* new_name, int in_place);
 
 /**
  * @brief      Create new blank CCOS image file.
