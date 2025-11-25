@@ -2,15 +2,14 @@
 #define CCOS_CONTEXT_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 typedef struct {
-  uint8_t* disk;
-  size_t disk_size;
+  uint8_t* data;
+  size_t   size;
   uint16_t sector_size;
   uint16_t superblock_id;
   uint16_t bitmap_block_id;
-} ccfs_context_t;
-
-typedef ccfs_context_t* ccfs_handle;
+} ccos_disk_t;
 
 #endif  // CCOS_CONTEXT_H
