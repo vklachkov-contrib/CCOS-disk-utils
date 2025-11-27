@@ -13,23 +13,21 @@
 
 #define INODE_BLOCKS_OFFSET (sizeof(ccos_block_header_t) + sizeof(ccos_inode_desc_t) + sizeof(ccos_block_data_t))
 
-#define BS256_BLOCK_SIZE                (256)
-#define BS256_LOG_BLOCK_SIZE            (BS256_BLOCK_SIZE - sizeof(ccos_block_header_t))
-#define BS256_INODE_MAX_BLOCKS          ((BS256_BLOCK_SIZE - INODE_BLOCKS_OFFSET) / 2)
+#define BS256_LOG_BLOCK_SIZE            (256 - sizeof(ccos_block_header_t))
+#define BS256_INODE_MAX_BLOCKS          ((256 - INODE_BLOCKS_OFFSET) / 2)
 #define BS256_CONTENT_INODE_PADDING     (4)
-#define BS256_CONTENT_INODE_MAX_BLOCKS  ((BS256_BLOCK_SIZE - sizeof(ccos_block_data_t) - BS256_CONTENT_INODE_PADDING) / 2)
+#define BS256_CONTENT_INODE_MAX_BLOCKS  ((256 - sizeof(ccos_block_data_t) - BS256_CONTENT_INODE_PADDING) / 2)
 #define BS256_BITMASK_PADDING           (0)
-#define BS256_BITMASK_SIZE              (BS256_BLOCK_SIZE - sizeof(ccos_block_header_t) - 2 - 2 - BS256_BITMASK_PADDING)
+#define BS256_BITMASK_SIZE              (256 - sizeof(ccos_block_header_t) - 2 - 2 - BS256_BITMASK_PADDING)
 #define BS256_BITMASK_BLOCKS            (BS256_BITMASK_SIZE * 8)
 #define BS256_DIR_DEFAULT_SIZE          BS256_LOG_BLOCK_SIZE
 
-#define BS512_BLOCK_SIZE                512
-#define BS512_LOG_BLOCK_SIZE            (BS512_BLOCK_SIZE - sizeof(ccos_block_header_t) - 4)
-#define BS512_INODE_MAX_BLOCKS          ((BS512_BLOCK_SIZE - INODE_BLOCKS_OFFSET) / 2)
+#define BS512_LOG_BLOCK_SIZE            (512 - sizeof(ccos_block_header_t) - 4)
+#define BS512_INODE_MAX_BLOCKS          ((512 - INODE_BLOCKS_OFFSET) / 2)
 #define BS512_CONTENT_INODE_PADDING     (8)
-#define BS512_CONTENT_INODE_MAX_BLOCKS  ((BS512_BLOCK_SIZE - sizeof(ccos_block_data_t) - BS512_CONTENT_INODE_PADDING) / 2)
+#define BS512_CONTENT_INODE_MAX_BLOCKS  ((512 - sizeof(ccos_block_data_t) - BS512_CONTENT_INODE_PADDING) / 2)
 #define BS512_BITMASK_PADDING           (4)
-#define BS512_BITMASK_SIZE              (BS512_BLOCK_SIZE - sizeof(ccos_block_header_t) - 2 - 2 - BS512_BITMASK_PADDING)
+#define BS512_BITMASK_SIZE              (512 - sizeof(ccos_block_header_t) - 2 - 2 - BS512_BITMASK_PADDING)
 #define BS512_BITMASK_BLOCKS            (BS512_BITMASK_SIZE * 8)
 #define BS512_DIR_DEFAULT_SIZE          BS512_LOG_BLOCK_SIZE
 
@@ -187,7 +185,6 @@ typedef struct {
 } dir_entry_t;
 #pragma pack(pop)
 
-size_t get_block_size(ccos_disk_t* disk);
 size_t get_log_block_size(ccos_disk_t* disk);
 size_t get_inode_max_blocks(ccos_disk_t* disk);
 size_t get_content_inode_padding(ccos_disk_t* disk);

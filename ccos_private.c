@@ -38,7 +38,7 @@ uint16_t calc_inode_blocks_checksum(ccos_disk_t* disk, const ccos_inode_t* inode
   const size_t start_offset = offsetof(ccos_inode_t, content_inode_info) + offsetof(ccos_block_data_t, block_next);
 
   const uint8_t* checksum_data = (const uint8_t*)&inode->content_inode_info.block_next;
-  uint16_t checksum_data_size = get_block_size(disk) - start_offset;
+  uint16_t checksum_data_size = disk->sector_size - start_offset;
 
   uint16_t blocks_checksum = calc_checksum(checksum_data, checksum_data_size);
   blocks_checksum += inode->content_inode_info.header.file_id;
@@ -51,7 +51,7 @@ uint16_t calc_content_inode_checksum(ccos_disk_t* disk, const ccos_content_inode
   const size_t start_offset = offsetof(ccos_content_inode_t, content_inode_info) + offsetof(ccos_block_data_t, block_next);
 
   const uint8_t *checksum_data = (const uint8_t*)&content_inode->content_inode_info.block_next;
-  uint16_t checksum_data_size = get_block_size(disk) - start_offset - get_content_inode_padding(disk);
+  uint16_t checksum_data_size = disk->sector_size - start_offset - get_content_inode_padding(disk);
 
   uint16_t blocks_checksum = calc_checksum(checksum_data, checksum_data_size);
   blocks_checksum += content_inode->content_inode_info.header.file_id;
@@ -85,23 +85,18 @@ void update_bitmask_checksum(ccos_disk_t* disk, ccos_bitmask_t* bitmask) {
 }
 
 ccos_inode_t* get_inode(ccos_disk_t* disk, uint16_t block) {
-  size_t block_size = get_block_size(disk);
-  uint32_t addr = block * block_size;
-  return (ccos_inode_t*)&disk->data[addr];
+  return DISK_READ_BLOCK(disk, block);
 }
 
 ccos_content_inode_t* get_content_inode(ccos_disk_t* disk, uint16_t block) {
-  size_t block_size = get_block_size(disk);
-  uint32_t addr = block * block_size;
-  return (ccos_content_inode_t*)&disk->data[addr];
+  return DISK_READ_BLOCK(disk, block);
 }
 
 int get_superblock(ccos_disk_t* disk, uint16_t* superblock) {
-  uint16_t sb = *(uint16_t*)&disk->data[CCOS_SUPERBLOCK_ADDR_OFFSET];
+  uint16_t sb = DISK_READ_WORD(disk, CCOS_SUPERBLOCK_ADDR_OFFSET);
   if (sb == 0) sb = disk->superblock_id;
 
-  size_t block_size = get_block_size(disk);
-  uint32_t blocks_in_image = disk->size / block_size;
+  uint32_t blocks_in_image = disk->size / disk->sector_size;
 
   if (sb > blocks_in_image) {
     fprintf(stderr, "Invalid superblock! (Superblock: 0x%x, but only 0x%x blocks in the image).\n",
@@ -109,7 +104,7 @@ int get_superblock(ccos_disk_t* disk, uint16_t* superblock) {
     return -EINVAL;
   }
 
-  uint32_t block_addr = sb * block_size;
+  uint32_t block_addr = sb * disk->sector_size;
   uint16_t block_header = *(uint16_t*)&disk->data[block_addr];
   if (block_header != sb) {
     fprintf(stderr, "Invalid image: Block header 0x%x mismatches superblock 0x%x!\n", block_header, sb);
@@ -204,28 +199,26 @@ int get_file_blocks(ccos_disk_t* disk, ccos_inode_t* file, size_t* blocks_count,
 }
 
 static ccos_bitmask_t* get_bitmask(ccos_disk_t* disk) {
-  size_t block_size = get_block_size(disk);
-
-  uint16_t bitmask_block = *((uint16_t*)&disk->data[CCOS_BITMASK_ADDR_OFFSET]);
+  uint16_t bitmask_block = DISK_READ_WORD(disk, CCOS_BITMASK_ADDR_OFFSET);
   if (bitmask_block == 0) bitmask_block = disk->bitmap_block_id;
 
-  uint32_t blocks_in_image = disk->size / block_size;
+  uint32_t blocks_in_image = disk->size / disk->sector_size;
   if (bitmask_block > blocks_in_image) {
     fprintf(stderr, "Invalid bitmask block! (Bitmask: 0x%x, but only 0x%x blocks in the image).\n", bitmask_block,
             blocks_in_image);
     return NULL;
   }
 
-  uint32_t addr = bitmask_block * block_size;
-  uint16_t block_header = *(uint16_t*)&disk->data[addr];
-  if (block_header != bitmask_block) {
-    fprintf(stderr, "Invalid image: Block header 0x%x mismatches bitmask 0x%x!\n", block_header, bitmask_block);
+  ccos_bitmask_t* bitmask = DISK_READ_BLOCK(disk, bitmask_block);
+
+  if (bitmask->header.file_id != bitmask_block) {
+    fprintf(stderr, "Invalid image: Block header 0x%x mismatches bitmask 0x%x!\n", bitmask->header.file_id, bitmask_block);
     return NULL;
   }
 
   TRACE("Bitmask: 0x%x", bitmask_block);
-  uint32_t address = bitmask_block * block_size;
-  return (ccos_bitmask_t*)&disk->data[address];
+
+  return bitmask;
 }
 
 ccos_bitmask_list_t find_bitmask_blocks(ccos_disk_t* disk) {
@@ -236,18 +229,14 @@ ccos_bitmask_list_t find_bitmask_blocks(ccos_disk_t* disk) {
     return result;
   }
 
-  size_t block_size = get_block_size(disk);
-
-  uint16_t bitmask_id = first_bitmask_block->header.file_id;
-  uint32_t bitmask_addr = bitmask_id * block_size;
+  uint16_t bitmask_block_id = first_bitmask_block->header.file_id;
 
   for (size_t i = 0; i < MAX_BITMASK_BLOCKS_IN_IMAGE; i++) {
-    uint32_t offset = bitmask_addr + i * block_size;
-    ccos_block_header_t* header = (ccos_block_header_t*)&disk->data[offset];
-    if (header->file_id == bitmask_id) {
+    ccos_block_header_t* header = DISK_READ_BLOCK(disk, bitmask_block_id + i);
+    if (header->file_id == bitmask_block_id) {
       if (header->file_fragment_index != i) {
-        fprintf(stderr, "WARN: 0x%x: Invalid bitmask fragment index: expected: " SIZE_T "; actual: %d!\n", offset, i,
-                header->file_fragment_index);
+        fprintf(stderr, "WARN: 0x%x: Invalid bitmask fragment index: expected " SIZE_T ", actual: %d!\n",
+                (bitmask_block_id + i), i, header->file_fragment_index);
       }
 
       result.bitmask_blocks[i] = (ccos_bitmask_t*)header;
@@ -387,10 +376,11 @@ ccos_content_inode_t* get_last_content_inode(ccos_disk_t* disk, const ccos_inode
 }
 
 void erase_block(ccos_disk_t* disk, uint16_t block, ccos_bitmask_list_t* bitmask_list) {
-  size_t block_size = get_block_size(disk);
-  uint32_t address = block * block_size;
-  memset(&disk->data[address], 0, block_size);
-  *(uint32_t*)&(disk->data[address]) = CCOS_EMPTY_BLOCK_MARKER;
+  ccos_block_header_t* header = DISK_READ_BLOCK(disk, block);
+
+  memset(header, 0, disk->sector_size);
+  header->file_id = CCOS_EMPTY_BLOCK_MARKER;
+
   mark_block(disk, bitmask_list, block, 0);
 }
 
@@ -471,8 +461,6 @@ int remove_block_from_file(ccos_disk_t* disk, ccos_inode_t* file, ccos_bitmask_l
 uint16_t add_block_to_file(ccos_disk_t* disk, ccos_inode_t* file, ccos_bitmask_list_t* bitmask_list) {
   ccos_content_inode_t* last_content_inode = NULL;
 
-  size_t block_size = get_block_size(disk);
-
   uint16_t* content_blocks = get_inode_content_blocks(file);
   size_t max_content_blocks = get_inode_max_blocks(disk);
 
@@ -514,13 +502,11 @@ uint16_t add_block_to_file(ccos_disk_t* disk, ccos_inode_t* file, ccos_bitmask_l
   mark_block(disk, bitmask_list, new_block, 1);
 
   TRACE("Last content block is 0x%x", last_content_block);
-  uint32_t new_block_address = new_block * block_size;
-  ccos_block_header_t* new_block_header = (ccos_block_header_t*)&disk->data[new_block_address];
+  ccos_block_header_t* new_block_header = DISK_READ_BLOCK(disk, new_block);
   new_block_header->file_id = file->header.file_id;
 
   if (last_content_block != CCOS_INVALID_BLOCK) {
-    uint32_t last_block_address = last_content_block * block_size;
-    ccos_block_header_t* last_block_header = (ccos_block_header_t*)&disk->data[last_block_address];
+    ccos_block_header_t* last_block_header = DISK_READ_BLOCK(disk, last_content_block);
     TRACE("Last content block of %hx is %hx with header 0x%hx 0x%hx.", file->header.file_id, last_content_block,
           last_block_header->file_id, last_block_header->file_fragment_index);
     new_block_header->file_fragment_index = last_block_header->file_fragment_index + 1;
@@ -932,22 +918,19 @@ int parse_file_name(const short_string_t* file_name, char* basename, char* type,
 }
 
 int get_block_data(ccos_disk_t* disk, uint16_t block, uint8_t** start, size_t* size) {
-  size_t block_size = get_block_size(disk);
-  size_t log_block_size = get_log_block_size(disk);
   // TODO: check bounds
-  uint32_t address = block * block_size;
-  *start = &disk->data[address + CCOS_DATA_OFFSET];
-  *size = log_block_size;
+  *start = DISK_READ_BLOCK(disk, block) + CCOS_DATA_OFFSET;
+  *size = get_log_block_size(disk);
   return 0;
 }
 
 int get_free_blocks(ccos_disk_t* disk, ccos_bitmask_list_t* bitmask_list, size_t* free_blocks_count, uint16_t** free_blocks) {
   size_t free_count = 0;
 
-  size_t block_size = get_block_size(disk);
-  size_t block_count = disk->size / block_size;
+  size_t block_count = disk->size / disk->sector_size;
 
   // sanity checks
+
   int allocated_info[MAX_BITMASK_BLOCKS_IN_IMAGE];
   for (size_t i = 0; i < bitmask_list->length; i++) {
     allocated_info[i] = bitmask_list->bitmask_blocks[i]->allocated;
@@ -1026,7 +1009,7 @@ int change_date(ccos_disk_t* disk, ccos_inode_t* file, ccos_date_t new_date, dat
 }
 
 int format_image(ccos_disk_t* disk) {
-  size_t block_size = get_block_size(disk);
+  size_t block_size = disk->sector_size;
   size_t bitmask_size = get_bitmask_size(disk);
 
   uint16_t superblock = disk->superblock_id;

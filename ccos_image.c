@@ -227,7 +227,7 @@ int ccos_set_image_label(ccos_disk_t* disk, const char* label) {
 }
 
 int ccos_get_image_map(ccos_disk_t* disk, const uint8_t* data, size_t data_size, block_type_t** image_map, size_t* free_blocks_count) {
-  size_t block_size = get_block_size(disk);
+  size_t block_size = disk->sector_size;
   size_t block_count = data_size / block_size;
 
   block_type_t* buffer = NULL;
@@ -645,7 +645,7 @@ int ccos_calc_free_space(ccos_disk_t* disk, size_t* free_space) {
 
   free(free_blocks);
 
-  *free_space = free_blocks_count * get_block_size(disk);
+  *free_space = free_blocks_count * disk->sector_size;
   return 0;
 }
 
@@ -743,7 +743,7 @@ int ccos_rename_file(ccos_disk_t* disk, ccos_inode_t* file, const char* new_name
 }
 
 int ccos_create_new_image(ccos_disk_t* disk, size_t blocks) {
-  size_t block_size = get_block_size(disk);
+  size_t block_size = disk->sector_size;
   size_t disk_size = block_size * blocks;
 
   disk->data = malloc(disk_size);
