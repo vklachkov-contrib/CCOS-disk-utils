@@ -114,7 +114,7 @@ cleanup:
 }
 
 static traverse_callback_result_t print_file_info(
-  ccos_disk_t* disk, ccos_inode_t* file, UNUSED const char* dirname, int level, void* arg
+  UNUSED ccos_disk_t* disk, ccos_inode_t* file, UNUSED const char* dirname, int level, void* arg
 ) {
   int short_format = *(int*)arg;
   uint32_t file_size = ccos_get_file_size(file);
@@ -556,7 +556,7 @@ int replace_file(ccos_disk_t* disk, const char* path, const char* filename, cons
   }
 
   fseek(target_file, 0, SEEK_END);
-  long file_size = ftell(target_file);
+  size_t file_size = ftell(target_file);
   fseek(target_file, 0, SEEK_SET);
 
   file_contents = calloc(file_size, sizeof(uint8_t));

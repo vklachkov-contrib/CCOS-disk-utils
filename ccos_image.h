@@ -335,6 +335,6 @@ int ccos_set_image_label(ccos_disk_t* disk, const char* label);
  *
  * @return     Image data on success, NULL otherwise.
  */
-int ccos_create_new_image(ccos_disk_t* disk, size_t blocks);
+int ccos_create_new_image(size_t size, uint16_t sector_size, uint16_t superblock, ccos_disk_t* output);
 
 #endif  // CCOS_IMAGE_H

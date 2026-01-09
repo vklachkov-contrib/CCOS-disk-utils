@@ -53,7 +53,7 @@ static const struct option long_options[] = {{"image", required_argument, NULL, 
 
 static const char* opt_string = "i:r:n:c:e:a:t:y:z:ldpsvhw";
 
-static void print_usage() {
+static void print_usage(void) {
   fprintf(stderr,
           "This is a tool for manipulating GRiD OS disk images.\n"
           "Usage:\n"
@@ -95,8 +95,8 @@ static void print_usage() {
           "-l, --in-place           Write changes to the original image\n");
 }
 
-ccos_disk_t* default_ccos_context() {
-  ccos_disk_t* disk = malloc(sizeof(ccos_disk_t));
+ccos_disk_t* default_ccos_context(void) {
+  ccos_disk_t* disk = calloc(1, sizeof(ccos_disk_t));
 
   disk->data = NULL;
   disk->size = 0;

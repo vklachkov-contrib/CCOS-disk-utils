@@ -340,7 +340,10 @@ int ccos_write_file(ccos_disk_t* disk, ccos_inode_t* file, const uint8_t* file_d
     goto cleanup;
   }
 
-  ccos_bitmask_list_t bitmask_list = find_bitmask_blocks(disk);
+  // TODO: Check errors.
+  ccos_bitmask_list_t bitmask_list;
+  find_bitmask_blocks(disk, &bitmask_list);
+
   if (bitmask_list.length == 0) {
     fprintf(stderr, "Unable to write to file: invalid bitmask!\n");
     res = -EINVAL;
@@ -420,13 +423,16 @@ cleanup:
 int ccos_copy_file(ccos_disk_t* src, ccos_inode_t* src_file, ccos_disk_t* dest, ccos_inode_t* dest_directory) {
   int res = 0;
 
-  ccos_bitmask_list_t dest_bitmask_list = find_bitmask_blocks(dest);
+  // TODO: Check errors.
+  ccos_bitmask_list_t dest_bitmask_list;
+  find_bitmask_blocks(dest, &dest_bitmask_list);
+
   if (dest_bitmask_list.length == 0) {
     fprintf(stderr, "Unable to copy file: Unable to get bitmask in destination image!\n");
     return -EINVAL;
   }
 
-  uint16_t dest_free_block = get_free_block(dest, &dest_bitmask_list);
+  uint16_t dest_free_block = find_free_block(dest, &dest_bitmask_list);
   if (dest_free_block == CCOS_INVALID_BLOCK) {
     fprintf(stderr, "Unable to copy file: no space left!\n");
     return -ENOSPC;
@@ -486,7 +492,10 @@ int ccos_delete_file(ccos_disk_t* disk, ccos_inode_t* file) {
     free(content);
   }
 
-  ccos_bitmask_list_t bitmask_list = find_bitmask_blocks(disk);
+  // TODO: Check errors.
+  ccos_bitmask_list_t bitmask_list;
+  find_bitmask_blocks(disk, &bitmask_list);
+
   if (bitmask_list.length == 0) {
     fprintf(stderr, "Unable to delete file: Unable to find image bitmask!\n");
     return -EINVAL;
@@ -527,14 +536,17 @@ int ccos_delete_file(ccos_disk_t* disk, ccos_inode_t* file) {
 }
 
 ccos_inode_t* ccos_add_file(ccos_disk_t* disk, ccos_inode_t* dest_directory, uint8_t* file_data, size_t file_size, const char* file_name) {
-  ccos_bitmask_list_t bitmask_list = find_bitmask_blocks(disk);
+  // TODO: Check errors.
+  ccos_bitmask_list_t bitmask_list;
+  find_bitmask_blocks(disk, &bitmask_list);
+
   if (bitmask_list.length == 0) {
     fprintf(stderr, "Unable to add file: Unable to find bitmask in the image!\n");
     return NULL;
   }
 
   uint16_t free_block = CCOS_INVALID_BLOCK;
-  if ((free_block = get_free_block(disk, &bitmask_list)) == CCOS_INVALID_BLOCK) {
+  if ((free_block = find_free_block(disk, &bitmask_list)) == CCOS_INVALID_BLOCK) {
     fprintf(stderr, "Unable to get free block: No space left!\n");
     return NULL;
   }
@@ -628,7 +640,10 @@ int ccos_calc_free_space(ccos_disk_t* disk, size_t* free_space) {
     return ret;
   }
 
-  ccos_bitmask_list_t bitmask_list = find_bitmask_blocks(disk);
+  // TODO: Check errors.
+  ccos_bitmask_list_t bitmask_list;
+  find_bitmask_blocks(disk, &bitmask_list);
+
   if (bitmask_list.length == 0) {
     fprintf(stderr, "Unable to calculate free space on the image: Unable to find bitmask!\n");
     return -ENOSPC;
@@ -637,7 +652,7 @@ int ccos_calc_free_space(ccos_disk_t* disk, size_t* free_space) {
   uint16_t* free_blocks = NULL;
   size_t free_blocks_count = 0;
 
-  ret = get_free_blocks(disk, &bitmask_list, &free_blocks_count, &free_blocks);
+  ret = find_free_blocks(disk, &bitmask_list, &free_blocks, &free_blocks_count);
   if (ret) {
     fprintf(stderr, "Unable to calculate free space: Unable to get free blocks!\n");
     return ret;
@@ -742,23 +757,38 @@ int ccos_rename_file(ccos_disk_t* disk, ccos_inode_t* file, const char* new_name
   return 0;
 }
 
-int ccos_create_new_image(ccos_disk_t* disk, size_t blocks) {
-  size_t block_size = disk->sector_size;
-  size_t disk_size = block_size * blocks;
+int ccos_create_new_image(size_t size, uint16_t sector_size, uint16_t superblock, ccos_disk_t* output) {
+  if (size % sector_size != 0) {
+    fprintf(stderr, "Unable to create new image: sector size must be a multiple of %d bytes!\n", sector_size);
+    return -EINVAL;
+  }
 
-  disk->data = malloc(disk_size);
-  if (disk->data == NULL) {
+  if (superblock == 0 || superblock == 0xFFFF) {
+    fprintf(stderr, "Unable to create new image: superblock must be in range 0x0001..0xFFFE!\n");
+    return -EINVAL;
+  }
+
+
+  uint8_t* data = calloc(size, sizeof(uint8_t));
+  if (data == NULL) {
     fprintf(stderr, "Unable to create new image: unable to allocate memory: %s!\n", strerror(errno));
     return -ENOMEM;
   }
 
-  disk->size = disk_size;
+  ccos_disk_t disk = {
+    data,
+    size,
+    sector_size,
+    superblock,
+    superblock-1
+  };
 
-  int ret = format_image(disk);
+  int ret = format_disk(&disk);
   if (ret) {
     fprintf(stderr, "Unable to create new image: unable to format image!\n");
     return ret;
   }
 
+  *output = disk;
   return 0;
 }

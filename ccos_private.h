@@ -10,12 +10,19 @@
 #include "string_utils.h"
 
 typedef struct {
+  size_t length;
+  ccos_bitmask_t* blocks[BS256_BITMASK_BLOCKS];
+} ccos_bitmask_list_t;
+
+typedef struct {
   uint16_t offset;
   size_t size;
   ccos_inode_t* file;
 } parsed_directory_element_t;
 
 typedef enum { CREATED, MODIF, EXPIR } date_type_t;
+
+typedef enum { BLOCK_STATUS_FREE, BLOCK_STATUS_USED } block_status_t;
 
 /**
  * @brief      Calculate checksum as it done in Compass's BIOS.
@@ -91,6 +98,11 @@ void update_content_inode_checksums(ccos_disk_t* disk, ccos_content_inode_t* con
 void update_bitmask_checksum(ccos_disk_t* disk, ccos_bitmask_t* bitmask);
 
 /**
+ * TODO
+ */
+int is_valid_block_number(ccos_disk_t* disk, uint16_t block);
+
+/**
  * @brief      Find a superblock (i.e. the inode with the root directory description) in a CCOS filesystem image.
  *
  * @param[in]  disk         Filesystem context handle.
@@ -131,7 +143,7 @@ int get_file_blocks(ccos_disk_t* disk, ccos_inode_t* file, size_t* blocks_count,
  *
  * @return     List of CCOS image bitmask blocks.
  */
-ccos_bitmask_list_t find_bitmask_blocks(ccos_disk_t* disk);
+int find_bitmask_blocks(ccos_disk_t* disk, ccos_bitmask_list_t* output);
 
 /**
  * @brief      Find available free block in the image and return it's number.
@@ -141,7 +153,7 @@ ccos_bitmask_list_t find_bitmask_blocks(ccos_disk_t* disk);
  *
  * @return     The free block on success, CCOS_INVALID_BLOCK if no free space in the image.
  */
-uint16_t get_free_block(ccos_disk_t* disk, const ccos_bitmask_list_t* bitmask_list);
+uint16_t find_free_block(ccos_disk_t* disk, const ccos_bitmask_list_t* bitmask_list);
 
 /**
  * @brief      Mark block in the bitmask as free or used.
@@ -151,7 +163,7 @@ uint16_t get_free_block(ccos_disk_t* disk, const ccos_bitmask_list_t* bitmask_li
  * @param[in]  block         The number of the block.
  * @param[in]  mode          The mode (0 for free, 1 for used).
  */
-void mark_block(ccos_disk_t* disk, ccos_bitmask_list_t* bitmask_list, uint16_t block, uint8_t mode);
+int mark_block(ccos_disk_t* disk, ccos_bitmask_list_t* bitmask_list, uint16_t block, block_status_t status);
 
 /**
  * @brief      Initialize inode at the given block.
@@ -284,8 +296,9 @@ int delete_file_from_parent_dir(ccos_disk_t* disk, ccos_inode_t* file);
  *
  * @return     0 on success, -1 otherwise.
  */
-int parse_file_name(const short_string_t* file_name, char* basename, char* type, size_t* name_length,
-                    size_t* type_length);
+int parse_file_name(const short_string_t* file_name,
+                    char* basename, size_t* name_length,
+                    char* type, size_t* type_length);
 
 /**
  * @brief      Extract list of files stored in the directory by parsing directory raw contents.
@@ -318,15 +331,15 @@ int get_block_data(ccos_disk_t* disk, uint16_t block, uint8_t** start, size_t* s
 /**
  * @brief      Return info about free blocks in a CCOS image.
  *
- * @param[in]  disk                Filesystem context handle.
+ * @param[in]  disk               Filesystem context handle.
  * @param[in]  bitmask_list       List of CCOS image bitmask blocks.
  * @param[in]  data_size          Image size.
- * @param      free_blocks_count  Pointer to free blocks count.
  * @param      free_blocks        Pointer to the free blocks array.
+ * @param      free_blocks_count  Pointer to free blocks count.
  *
  * @return     0 on success, -1 otherwise.
  */
-int get_free_blocks(ccos_disk_t* disk, ccos_bitmask_list_t* bitmask_list, size_t* free_blocks_count, uint16_t** free_blocks);
+int find_free_blocks(ccos_disk_t* disk, ccos_bitmask_list_t* bitmask_list, uint16_t** free_blocks, size_t* free_blocks_count);
 
 /**
  * @brief      Find the index of a file in the directory data.
@@ -337,8 +350,7 @@ int get_free_blocks(ccos_disk_t* disk, ccos_bitmask_list_t* bitmask_list, size_t
  *
  * @return     Index of the file in the directory on success, -1 otherwise.
  */
-int find_file_index_in_directory_data(ccos_inode_t* file, ccos_inode_t* directory,
-                                      parsed_directory_element_t* elements);
+int find_file_index_in_directory_data(ccos_inode_t* file, ccos_inode_t* directory, parsed_directory_element_t* elements);
 
 /**
  * @brief      Checks if the directory is root.
@@ -370,6 +382,6 @@ int change_date(ccos_disk_t* disk, ccos_inode_t* file, ccos_date_t new_date, dat
  *
  * @return     0 on success, -1 otherwise.
  */
-int format_image(ccos_disk_t* disk);
+int format_disk(ccos_disk_t* disk);
 
 #endif  // CCOS_DISK_TOOL_CCOS_PRIVATE_H
