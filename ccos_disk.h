@@ -18,7 +18,7 @@ typedef struct {
  * @param disk    Pointer to the disk structure.
  * @param sector  The sector number to read.
  *
- * @return Pointer to the start of the sector's data within the disk image.
+ * @return Pointer to the start of the sector's data within the disk image, or NULL if the sector is out of bounds.
  */
 void* ccos_disk_read_sector(ccos_disk_t* disk, uint16_t sector);
 

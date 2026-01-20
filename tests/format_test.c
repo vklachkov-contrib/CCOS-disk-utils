@@ -1,19 +1,13 @@
-//
-// Format tests
-//
-
 #include <criterion/criterion.h>
 
+#include <ccos_disk.h>
+#include <ccos_format.h>
 #include <ccos_private.h>
 
-#include <criterion/internal/assert.h>
-#include <criterion/logging.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ccos_disk.h"
-#include "ccos_format.h"
 
 static void display_bad_sector(const uint8_t* actual, size_t sector_size) {
   for (size_t i = 0; i < sector_size; i += 16) {
