@@ -33,6 +33,7 @@
 #define BS512_BITMASK_BLOCKS            (BS512_BITMASK_SIZE * 8)
 #define BS512_DIR_DEFAULT_SIZE          BS512_LOG_BLOCK_SIZE
 
+// FIXME: this value valid only for external disks
 // Block number is 2 bytes => max blocks = 65535; each bitmask stores 4000 blocks => we need 17 bitmask blocks max
 #define MAX_BITMASK_BLOCKS_IN_IMAGE 17
 
@@ -223,7 +224,6 @@ typedef struct {
 } dir_entry_t;
 #pragma pack(pop)
 
-size_t get_block_size(ccos_disk_t* disk);
 size_t get_log_block_size(ccos_disk_t* disk);
 size_t get_inode_max_blocks(ccos_disk_t* disk);
 size_t get_content_inode_padding(ccos_disk_t* disk);

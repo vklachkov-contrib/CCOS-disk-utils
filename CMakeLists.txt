@@ -7,6 +7,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 project(ccos_api)
 
 add_library(ccos_api STATIC
+        ccos_disk.c
         ccos_disk.h
         ccos_image.h
         ccos_image.c

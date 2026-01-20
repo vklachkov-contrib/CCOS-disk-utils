@@ -2,14 +2,9 @@
 
 #define SECTOR_SIZE_TO_CONST(name, X) \
   size_t get_##name (ccos_disk_t* disk) { \
-    switch (disk->sector_size) {    \
-      case 256: return BS256_##X;  \
-      case 512: return BS512_##X;  \
-      default:  return SIZE_MAX;   \
-    } \
+    return disk->sector_size == 256 ? BS256_##X : BS512_##X; \
   }
 
-SECTOR_SIZE_TO_CONST(block_size,                BLOCK_SIZE);
 SECTOR_SIZE_TO_CONST(log_block_size,            LOG_BLOCK_SIZE);
 SECTOR_SIZE_TO_CONST(inode_max_blocks,          INODE_MAX_BLOCKS);
 SECTOR_SIZE_TO_CONST(content_inode_padding,     CONTENT_INODE_PADDING);

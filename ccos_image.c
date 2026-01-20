@@ -1,4 +1,5 @@
 #include "ccos_image.h"
+#include "ccos_disk.h"
 #include "ccos_private.h"
 
 #include <errno.h>
@@ -219,38 +220,6 @@ int ccos_set_image_label(ccos_disk_t* disk, const char* label) {
   } else {
     return ccos_rename_file(disk, root, "", NULL);
   }
-}
-
-int ccos_get_image_map(ccos_disk_t* disk, block_type_t** image_map, size_t* free_blocks_count) {
-  size_t block_size = get_block_size(disk);
-  size_t block_count = disk->size / block_size;
-  if (block_count * block_size != disk->size) {
-    fprintf(stderr, "Warn: image size (" SIZE_T " bytes) is not a multiple of a block size (" SIZE_T " bytes)\n",
-            disk->size, block_size);
-  }
-
-  *image_map = (block_type_t*)calloc(block_count, sizeof(block_type_t));
-  if (*image_map == NULL) {
-    fprintf(stderr, "Unable to allocate memory for " SIZE_T " blocks in block map: %s!\n",
-            block_count, strerror(errno));
-    return -1;
-  }
-
-  *free_blocks_count = 0;
-  for (int i = 0; i < block_count; ++i) {
-    uint32_t block_header = *(uint32_t*)&disk->data[i * block_size];
-    block_type_t block_type = UNKNOWN;
-    if (block_header == CCOS_EMPTY_BLOCK_MARKER) {
-      *free_blocks_count = *free_blocks_count + 1;
-      block_type = EMPTY;
-    } else {
-      block_type = DATA;
-    }
-
-    (*image_map)[i] = block_type;
-  }
-
-  return 0;
 }
 
 int ccos_read_file(ccos_disk_t* disk, ccos_inode_t* file, uint8_t** file_data, size_t* file_size) {
@@ -550,14 +519,7 @@ ccos_inode_t* ccos_add_file(ccos_disk_t* disk, ccos_inode_t* dest_directory,
 }
 
 ccos_inode_t* ccos_get_root_dir(ccos_disk_t* disk) {
-  uint16_t superblock = 0;
-
-  if (get_superblock(disk, &superblock) == -1) {
-    fprintf(stderr, "Unable to get root directory: unable to get superblock!\n");
-    return NULL;
-  }
-
-  return get_inode(disk, superblock);
+  return ccos_disk_read_sector(disk, disk->superblock_fid);
 }
 
 int ccos_validate_file(ccos_disk_t* disk, const ccos_inode_t* file) {
@@ -585,12 +547,6 @@ int ccos_validate_file(ccos_disk_t* disk, const ccos_inode_t* file) {
 }
 
 size_t ccos_calc_free_space(ccos_disk_t* disk) {
-  uint16_t superblock = 0;
-  if (get_superblock(disk, &superblock) == -1) {
-    fprintf(stderr, "Unable to calculate free space: Unable to get superblock!\n");
-    return -1;
-  }
-
   uint16_t* free_blocks = NULL;
   size_t free_blocks_count = 0;
 
@@ -610,12 +566,11 @@ size_t ccos_calc_free_space(ccos_disk_t* disk) {
   }
 
   free(free_blocks);
-  return free_blocks_count * get_block_size(disk);
+  return free_blocks_count * disk->sector_size;
 }
 
 ccos_inode_t* ccos_get_parent_dir(ccos_disk_t* disk, ccos_inode_t* file) {
-  uint16_t parent_dir_id = file->desc.dir_file_id;
-  return get_inode(disk, parent_dir_id);
+  return ccos_disk_read_sector(disk, file->desc.dir_file_id);
 }
 
 int ccos_parse_file_name(const ccos_inode_t* inode, char* basename, char* type, size_t* name_length, size_t* type_length) {
