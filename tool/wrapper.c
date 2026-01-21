@@ -15,6 +15,10 @@
 #define PROGRAMS_DIR_1 "Programs~Subject~"
 #define PROGRAMS_DIR_2 "Programs~subject~"
 
+#define FAT_MBR_END_OF_SECTOR_MARKER 0xAA55
+#define OPCODE_NOP 0x90
+#define OPCODE_JMP 0xEB
+
 typedef struct {
   const char* target_name;
   ccos_inode_t* target_file;
@@ -27,6 +31,33 @@ typedef enum { RESULT_OK = 1, RESULT_ERROR, RESULT_BREAK } traverse_callback_res
 typedef traverse_callback_result_t (*on_file_t)(ccos_disk_t* disk, ccos_inode_t* file, const char* dirname, int level, void* arg);
 
 typedef traverse_callback_result_t (*on_dir_t)(ccos_disk_t* disk, ccos_inode_t* dir, const char* dirname, int level, void* arg);
+
+static int is_fat_image(const uint8_t* data) {
+  return data[0] == OPCODE_JMP && data[2] == OPCODE_NOP &&
+         *(uint16_t*)&data[0x1FE] == FAT_MBR_END_OF_SECTOR_MARKER;
+}
+
+static int is_imd_image(const uint8_t* data) {
+  return data[0] == 'I' && data[1] == 'M' && data[2] == 'D' && data[3] == ' ';
+}
+
+int is_image_supported(const uint8_t* file_data) {
+  if (is_fat_image(file_data)) {
+    fprintf(stderr, "FAT image is found; return.\n");
+    return 0;
+  }
+
+  if (is_imd_image(file_data)) {
+    fprintf(stderr,
+            "Provided image is in ImageDisk format, please convert it into the raw disk\n"
+            "image (.img) before using.\n"
+            "\n"
+            "(You can use Disk-Utilities from here: https://github.com/keirf/Disk-Utilities)\n");
+    return 0;
+  }
+
+  return 1;
+}
 
 static char* format_version(version_t* version) {
   char* version_string = (char*)calloc(VERSION_MAX_SIZE, sizeof(char));
@@ -835,25 +866,27 @@ int rename_file(ccos_disk_t* disk, char* path, char* file_name, char* new_name, 
   return res;
 }
 
-int create_blank_image(ccos_disk_t* disk, char* path, size_t size) {
+int create_blank_image(char* path, size_t size, uint16_t sector_size) {
   if (path == NULL) {
     fprintf(stderr, "No target image is provided to copy file to!\n");
     return EINVAL;
   }
 
-  if (size % disk->sector_size != 0) {
-    fprintf(stderr, "Image size must be a multiple of the sector size %d\n", disk->sector_size);
+  if (size % sector_size != 0) {
+    fprintf(stderr, "Image size must be a multiple of the sector size %d\n", sector_size);
     return EINVAL;
   }
 
-  disk_format_t format = disk->sector_size == 256 ? CCOS_DISK_FORMAT_BUBMEM : CCOS_DISK_FORMAT_COMPASS;
-  int res = ccos_new_disk_image(format, size, disk);
+  ccos_disk_t disk;
+
+  disk_format_t format = sector_size == 256 ? CCOS_DISK_FORMAT_BUBMEM : CCOS_DISK_FORMAT_COMPASS;
+  int res = ccos_new_disk_image(format, size, &disk);
   if (res) {
     fprintf(stderr, "Failed to create new disk image. Error code: %s\n", strerror(res));
     return res;
   }
 
-  res = save_image(path, disk, 1);
-  free(disk->data);
+  res = save_image(path, &disk, 1);
+  free(disk.data);
   return res;
 }

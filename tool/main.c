@@ -1,19 +1,20 @@
+#include "common.h"
+#include "wrapper.h"
+
+#include <ccos_disk.h>
+#include <ccos_image.h>
+
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "common.h"
-#include "ccos_disk.h"
-#include "ccos_private.h"
-#include "ccos_image.h"
-#include "wrapper.h"
-
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-#define SECTOR_SIZE_OPT  2000
-#define SUPERBLOCK_OPT   2001
+#define SECTOR_SIZE_OPT   2000
+#define SUPERBLOCK_OPT    2001
+#define BITMAP_BLOCK_OPT  2002       
 
 #define DEFAULT_SECTOR_SIZE   512
 
@@ -33,6 +34,7 @@ typedef enum {
 static const struct option long_options[] = {{"image", required_argument, NULL, 'i'},
                                              {"sector-size", required_argument, NULL, SECTOR_SIZE_OPT},
                                              {"superblock", required_argument, NULL, SUPERBLOCK_OPT},
+                                             {"bitmap", required_argument, NULL, BITMAP_BLOCK_OPT},
                                              {"replace-file", required_argument, NULL, 'r'},
                                              {"copy-file", required_argument, NULL, 'c'},
                                              {"rename-file", required_argument, NULL, 'e'},
@@ -71,7 +73,8 @@ static void print_usage() {
           "\n"
           "-i, --image IMAGE        Path to GRiD OS disk RAW image\n"
           "--sector-size VALUE      Image sector size, default is " TOSTRING(DEFAULT_SECTOR_SIZE) "\n"
-          "--superblock HEX         Superblock number, default is " TOSTRING(DEFAULT_SUPERBLOCK) "\n"
+          "--superblock HEX         Superblock sector number\n"
+          "--bitmap HEX             Bitmap sector number\n"
           "-h, --help               Show this message\n"
           "-v, --verbose            Verbose output\n"
           "\n"
@@ -94,25 +97,17 @@ static void print_usage() {
           "-l, --in-place           Write changes to the original image\n");
 }
 
-ccos_disk_t* default_ccos_context() {
-  ccos_disk_t* disk = malloc(sizeof(ccos_disk_t));
-
-  disk->sector_size = DEFAULT_SECTOR_SIZE;
-  disk->superblock_fid = DEFAULT_SUPERBLOCK;
-  disk->bitmap_fid = DEFAULT_BITMASK_BLOCK_ID;
-
-  return disk;
-}
-
 int main(int argc, char** argv) {
   op_mode_t mode = 0;
   char* path = NULL;
-  ccos_disk_t* disk = default_ccos_context();
   char* filename = NULL;
   char* dir_name = NULL;
   char* target_name = NULL;
   char* target_image = NULL;
   size_t new_image_size = 0;
+  uint16_t sector_size = DEFAULT_SECTOR_SIZE;
+  uint16_t superblock_fid = 0;
+  uint16_t bitmap_fid = 0;
   int in_place = 0;
   int short_format = 0;
   int opt = 0;
@@ -186,7 +181,7 @@ int main(int argc, char** argv) {
         mode = MODE_CREATE_BLANK;
 
         new_image_size = strtol(optarg, NULL, 10);
-        if (new_image_size <= 0 || new_image_size % disk->sector_size != 0) {
+        if (new_image_size <= 0 || new_image_size % sector_size != 0) {
           printf("Invalid image size! Value must be positive and a multiple of the sector size\n");
           return 1;
         }
@@ -202,9 +197,9 @@ int main(int argc, char** argv) {
         return 0;
       }
       case SECTOR_SIZE_OPT: {
-        long sector_size = strtol(optarg, NULL, 10);
+        sector_size = strtol(optarg, NULL, 10);
         if (sector_size == 256 || sector_size == 512) {
-          disk->sector_size = sector_size;
+          sector_size = sector_size;
           break;
         } else {
           printf("Invalid sector size! Allowed only 256 or 512\n");
@@ -214,8 +209,17 @@ int main(int argc, char** argv) {
       case SUPERBLOCK_OPT: {
         long value = strtol(optarg, NULL, 16);
         if (0 < value && value < 0xFFFF) {
-          disk->superblock_fid = value;
-          disk->bitmap_fid = value - 1;
+          superblock_fid = value;
+          break;
+        } else {
+          printf("Invalid superblock! Value must be in range 0x0001-0xFFFE\n");
+          return 1;
+        }
+      }
+      case BITMAP_BLOCK_OPT: {
+        long value = strtol(optarg, NULL, 16);
+        if (0 < value && value < 0xFFFF) {
+          bitmap_fid = value;
           break;
         } else {
           printf("Invalid superblock! Value must be in range 0x0001-0xFFFE\n");
@@ -225,54 +229,69 @@ int main(int argc, char** argv) {
     }
   }
 
-  TRACE("Use image '%s' with sector size %d, superblock %#x, bitmap block %#x",
-        path, disk->sector_size, disk->superblock_fid, disk->bitmap_fid);
-
   if (mode == MODE_CREATE_BLANK) {
-    return create_blank_image(disk, path, new_image_size);
+    return create_blank_image(path, new_image_size, sector_size);
   }
+
+  TRACE("Try to open image '%s' with sector size %d", path, sector_size);
 
   uint8_t* file_contents = NULL;
   size_t file_size = 0;
+
   if (read_file(path, &file_contents, &file_size) == -1) {
     fprintf(stderr, "Unable to read disk image file!\n");
-    print_usage();
     return -1;
   }
 
-  if (ccos_check_image(file_contents) == -1) {
+  if (is_image_supported(file_contents)) {
     fprintf(stderr, "Unable to get superblock: invalid image format!\n");
     free(file_contents);
     return -1;
   }
 
-  disk->data = file_contents;
-  disk->size = file_size;
+  ccos_disk_t disk;
+
+  if (superblock_fid == 0 && bitmap_fid == 0) {
+    if (ccos_disk_open(file_contents, file_size, &disk)) {
+      fprintf(stderr, "Unable to open disk image: unsupported file!\n");
+      free(file_contents);
+      return -1;
+    }
+  } else {
+    disk.sector_size = sector_size;
+    disk.superblock_fid = superblock_fid;
+    disk.bitmap_fid = bitmap_fid;
+    disk.data = file_contents;
+    disk.size = file_size;
+  }
+
+  TRACE("Use image with sector size %d, superblock at 0x%02x and bitmap at 0x%02x",
+        path, disk.superblock_fid, disk.bitmap_fid);
 
   int res;
   switch (mode) {
     case MODE_PRINT: {
-      res = print_image_info(disk, path, short_format);
+      res = print_image_info(&disk, path, short_format);
       if (res == 0) {
-        size_t free_bytes = ccos_calc_free_space(disk);
+        size_t free_bytes = ccos_calc_free_space(&disk);
         printf("Free space: " SIZE_T " bytes.\n", free_bytes);
       }
       break;
     }
     case MODE_DUMP: {
-      res = dump_image(disk, path);
+      res = dump_image(&disk, path);
       break;
     }
     case MODE_REPLACE_FILE: {
-      res = replace_file(disk, path, filename, target_name, in_place);
+      res = replace_file(&disk, path, filename, target_name, in_place);
       break;
     }
     case MODE_COPY_FILE: {
-      res = copy_file(disk, target_image, filename, in_place);
+      res = copy_file(&disk, target_image, filename, in_place);
       break;
     }
     case MODE_DELETE_FILE: {
-      res = delete_file(disk, path, filename, in_place);
+      res = delete_file(&disk, path, filename, in_place);
       break;
     }
     case MODE_ADD_FILE: {
@@ -281,16 +300,16 @@ int main(int argc, char** argv) {
         print_usage();
         res = -1;
       } else {
-        res = add_file(disk, path, filename, target_name, in_place);
+        res = add_file(&disk, path, filename, target_name, in_place);
       }
       break;
     }
     case MODE_CREATE_DIRECTORY: {
-      res = create_directory(disk, path, dir_name, in_place);
+      res = create_directory(&disk, path, dir_name, in_place);
       break;
     }
     case MODE_RENAME_FILE: {
-      res = rename_file(disk, path, filename, target_name, in_place);
+      res = rename_file(&disk, path, filename, target_name, in_place);
       break;
     }
     default: {

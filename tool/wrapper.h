@@ -7,6 +7,15 @@
 #include <stdint.h>
 
 /**
+ * @brief      Checks if the disk image format is supported.
+ *
+ * @param[in]  file_data  Pointer to the disk image data.
+ *
+ * @return     1 if the image is supported, 0 otherwise.
+ */
+int is_image_supported(const uint8_t* file_data);
+
+/**
  * @brief      Dumps a directory recursively from CCOS disk image.
  *
  * @param[in]  disk  Compass disk image.
@@ -156,14 +165,14 @@ int create_directory(ccos_disk_t* disk, char* path, char* directory_name, int in
 int rename_file(ccos_disk_t* disk, char* path, char* file_name, char* new_name, int in_place);
 
 /**
- * @brief      Create new blank CCOS image file.
+ * @brief      Create a new blank CCOS image file.
  *
- * @param[in]  disk  Compass disk image.
- * @param[in]  path  Path where to create the new image file.
- * @param[in]  size  Size of the image in bytes. Must be a multiple of the sector size.
+ * @param[in]  path         Path where to create the new image file.
+ * @param[in]  size         Size of the image in bytes. Must be a multiple of the sector size.
+ * @param[in]  sector_size  Size of each sector in bytes (e.g., 256 or 512).
  *
- * @return     0 on success, -1 otherwise.
+ * @return     0 on success, nonzero error code otherwise.
  */
-int create_blank_image(ccos_disk_t* disk, char* path, size_t size);
+int create_blank_image(char* path, size_t size, uint16_t sector_size);
 
 #endif  // WRAPPER_H
