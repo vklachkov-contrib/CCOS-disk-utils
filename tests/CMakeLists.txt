@@ -1,6 +1,8 @@
 find_package(Criterion REQUIRED)
 
 add_executable(ccos_tests
+        ${CMAKE_CURRENT_LIST_DIR}/utils/image.c
+        ${CMAKE_CURRENT_LIST_DIR}/utils/image.h
         ${CMAKE_CURRENT_LIST_DIR}/api_test.c
         ${CMAKE_CURRENT_LIST_DIR}/disk_test.c
         ${CMAKE_CURRENT_LIST_DIR}/format_test.c

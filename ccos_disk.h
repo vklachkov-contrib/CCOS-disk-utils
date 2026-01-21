@@ -13,6 +13,26 @@ typedef struct {
 } ccos_disk_t;
 
 /**
+ * @brief Opens a disk and initializes the disk structure. Disk parameters are determined heuristically.
+ *
+ * @param data     Pointer to the disk image data.
+ * @param size     Size of the disk image, in bytes.
+ * @param output   Pointer to the ccos_disk_t structure to be initialized.
+ *
+ * @return 0 on success, or a positive value on failure.
+ */
+int ccos_disk_open(uint8_t* data, size_t size, ccos_disk_t* output);
+
+/**
+ * @brief Validates a disk with the specified parameters.
+ *
+ * @param disk  Pointer to the ccos_disk_t structure representing the disk to validate.
+ *
+ * @return 0 if the disk params are valid, or a positive value if the disk params are invalid.
+ */
+int ccos_disk_params_valid(ccos_disk_t* disk);
+
+/**
  * @brief Reads and returns a pointer to the data of the specified sector.
  *
  * @param disk    Pointer to the disk structure.

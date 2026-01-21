@@ -144,6 +144,7 @@ static void write_superblock(ccos_disk_t* disk, ccos_bitmask_list_t* bitmask_lis
   root_dir->desc.mod_date = root_dir->desc.creation_date;
   root_dir->desc.expiration_date = (ccos_date_t) {};
 
+  // Root directory is it's own parent.
   root_dir->desc.dir_file_id = root_dir->header.file_id;
 
   root_dir->desc.protec = 1;
